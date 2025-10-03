@@ -22,14 +22,20 @@ from nltk.chat.util import Chat, reflections
 from requests import get
 from pygame import mixer
 from pywikihow import RandomHowTo, search_wikihow
-from Whatsapp import sendMessage
-from battery import check_battery
 import pygame
 from features.communication.Whatsapp import sendMessage
 from features.utilities.battery import check_battery
 from features.entertainment.joke import jokes
 from features.system.battery import battery
 from features.utilities.FocusGraph import focus_graph
+from features.utilities.task_manager import (
+    add_task,
+    list_tasks,
+    overdue_tasks,
+    mark_completed,
+    set_priority,
+    summary_text,
+)
 from features.entertainment.game import game_play
 from features.search.SearchNow import searchGoogle, searchyoutube, searchwikipedia
 from features.utilities.Translator import translategl
@@ -46,7 +52,12 @@ from core.GreetMe import greetMe
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root_dir)
+# Add feature subdirectories to Python path for dynamic imports used below
+features_dir = os.path.join(project_root_dir, "features")
+for sub in ["communication", "utilities", "entertainment", "system", "search"]:
+    sys.path.insert(0, os.path.join(features_dir, sub))
 #! If you want to use password then comment out
   
 # # Paste this just below your import files
@@ -590,6 +601,57 @@ if __name__ == "__main__":
                 elif "remind me" in query:
                     from reminder import remindme
                     remindme()
+
+                # Task management commands
+                elif "add task" in query or "add urgent task" in query:
+                    spoken = query
+                    clean = spoken.replace("jarvis", "").replace("add urgent task", "").replace("add task", "").strip()
+                    pr = "high" if "add urgent task" in spoken else "normal"
+                    # Try to split on common deadline prepositions
+                    deadline_text = None
+                    for kw in [" by ", " before ", " at ", " on "]:
+                        if kw in clean:
+                            parts = clean.split(kw, 1)
+                            description = parts[0].strip()
+                            deadline_text = parts[1].strip()
+                            break
+                    else:
+                        description = clean
+                    if description:
+                        t = add_task(description, deadline_text, pr)
+                        Speak(f"Task added: {t['title']}")
+                    else:
+                        Speak("Please say the task description again.")
+
+                elif "what are my tasks today" in query:
+                    Speak(summary_text("today"))
+
+                elif "what are my tasks this week" in query:
+                    Speak(summary_text("week"))
+
+                elif "show overdue tasks" in query or "overdue tasks" in query:
+                    Speak(summary_text("overdue"))
+
+                elif "mark task completed" in query:
+                    title = query.replace("jarvis", "").replace("mark task completed", "").replace(":", "").strip()
+                    done = mark_completed(title)
+                    if done:
+                        Speak(f"Marked completed: {done['title']}")
+                    else:
+                        Speak("I could not find that task.")
+
+                elif "set task priority" in query:
+                    # Example: set task priority: Call mom to high
+                    clean = query.replace("jarvis", "").replace("set task priority", "").replace(":", "").strip()
+                    if " to " in clean:
+                        title, pr = clean.split(" to ", 1)
+                        updated = set_priority(title.strip(), pr.strip())
+                        if updated:
+                            Speak(f"Priority set to {updated['priority']} for {updated['title']}")
+                        else:
+                            Speak("I could not find that task.")
+                    else:
+                        Speak("Please specify the task and the priority.")
 
                 #^ Web ip address finding
                 elif "ip ad dress" in query:
